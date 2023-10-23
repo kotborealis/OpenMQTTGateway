@@ -322,7 +322,7 @@ void pubBTMainCore(JsonObject& data, bool haPresenceEnabled = true) {
     if (BTConfig.pubBeaconUuidForTopic && !BTConfig.extDecoderEnable && data.containsKey("model_id") && data["model_id"].as<String>() == "IBEACON")
       topic = data["uuid"].as<const char*>(); // If model_id is IBEACON, use uuid as topic
     if (BTConfig.extDecoderEnable && !data.containsKey("model"))
-      topic = BTConfig.extDecoderTopic; // If external decoder, use this topic to send data
+      topic = BTConfig.extDecoderTopic + String("/") + data["id"].as<const char*>(); // If external decoder, use this topic to send data
     topic = subjectBTtoMQTT + String("/") + topic;
     pub((char*)topic.c_str(), data);
   }
@@ -362,6 +362,7 @@ public:
   }
 };
 
+void PublishDeviceData_(JsonObject& BLEdata);
 void PublishDeviceData(JsonObject& BLEdata);
 
 atomic_int forceBTScan;
@@ -1185,7 +1186,7 @@ void launchBTDiscovery(bool overrideDiscovery) {
 }
 #  endif
 
-void PublishDeviceData(JsonObject& BLEdata) {
+void PublishDeviceData_(JsonObject& BLEdata) {
   if (abs((int)BLEdata["rssi"] | 0) < abs(BTConfig.minRssi)) { // process only the devices close enough
     // Decode the payload
     process_bledata(BLEdata);
@@ -1216,6 +1217,15 @@ void PublishDeviceData(JsonObject& BLEdata) {
   } else {
     Log.trace(F("Low rssi, device filtered" CR));
   }
+}
+
+void PublishDeviceData(JsonObject& BLEdata) {
+  // Force gateway to publish all decoded entities...
+  BTConfig.extDecoderEnable = false;
+  PublishDeviceData_(BLEdata);
+  // As well as raw undecoded data
+  BTConfig.extDecoderEnable = true;
+  PublishDeviceData_(BLEdata);
 }
 
 void process_bledata(JsonObject& BLEdata) {
